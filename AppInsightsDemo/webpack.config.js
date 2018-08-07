@@ -4,5 +4,11 @@ module.exports = {
     output: {
         path: path.resolve(__dirname, 'wwwroot/dist'),
         filename: 'bundle.js'
+    },
+    resolve: {
+        alias: {
+            vue: 'vue/dist/vue.js'
+        },
+        extensions: ['.js', '.vue']
     }
 };
