@@ -1,12 +1,96 @@
-﻿<div id="app">
-    {{ message }}
+﻿@model AppInsightsDemo.Controllers.IndexModel
+<div id="app">
+
+    <div>
+        {{ message }}
+    </div>
+
+    <div>
+        <input v-model="appInsightsMessage" />
+    </div>
+
+    <div>
+        <button v-on:click="recordClick">Click Me</button>
+    </div>
+
+    <div>
+        <button v-on:click="fetchResults">Fetch Results</button>
+    </div>
+
+    <div>
+        Clicked: {{ clickCount }}
+    </div>
+    <div>
+        <span v-if="loading">Loading...</span>
+    </div>
+    <ul>
+        <li v-for="event in events">
+            <div>
+                Time: {{ event.timestamp }}<br />
+                ClickCount: {{ event.clickCount }}<br />
+                Message: {{ event.message }}<br />
+            </div>
+        </li>
+    </ul>
+
 </div>
+
+<script type="text/javascript">
+    var appInsights = window.appInsights || function (a) {
+        function b(a) { c[a] = function () { var b = arguments; c.queue.push(function () { c[a].apply(c, b) }) } } var c = { config: a }, d = document, e = window; setTimeout(function () { var b = d.createElement("script"); b.src = a.url || "https://az416426.vo.msecnd.net/scripts/a/ai.0.js", d.getElementsByTagName("script")[0].parentNode.appendChild(b) }); try { c.cookie = d.cookie } catch (a) { } c.queue = []; for (var f = ["Event", "Exception", "Metric", "PageView", "Trace", "Dependency"]; f.length;)b("track" + f.pop()); if (b("setAuthenticatedUserContext"), b("clearAuthenticatedUserContext"), b("startTrackEvent"), b("stopTrackEvent"), b("startTrackPage"), b("stopTrackPage"), b("flush"), !a.disableExceptionTracking) { f = "onerror", b("_" + f); var g = e[f]; e[f] = function (a, b, d, e, h) { var i = g && g(a, b, d, e, h); return !0 !== i && c["_" + f](a, b, d, e, h), i } } return c
+    }({
+        instrumentationKey: '@ViewData.Model.AppInsightsKey'
+    });
+
+    window.appInsights = appInsights, appInsights.queue && 0 === appInsights.queue.length && appInsights.trackPageView();
+</script>
 <script src="~/dist/bundle.js"></script>
 <script>
+    appInsightsUrl = axios.create({
+        baseURL: 'https://api.applicationinsights.io/v1/apps/@ViewData.Model.AppInsightsApplicationId',
+        headers: {
+            'x-api-key': '@ViewData.Model.AppInsightsRestApiKey'
+        }
+    });
+
     var app = new Vue({
         el: '#app',
         data: {
-            message: 'Hello Vue!'
+            message: 'Click Button to Record Trace',
+            appInsightsMessage: '',
+            clickCount: 0,
+            events: [],
+            loading: false
+        },
+        methods: {
+            recordClick: function () {
+
+                this.clickCount++;
+                var properties = {"message": this.appInsightsMessage };
+                var metrics = {"clickCount": this.clickCount };
+                appInsights.trackEvent("IndexClick", properties, metrics);
+                appInsights.flush();
+
+            },
+            fetchResults: function () {
+                var self = this;
+                self.loading = true;
+                appInsightsUrl.get('query?timespan=PT24H&query=customEvents%20|%20order%20by%20timestamp%20desc')
+                    .then(response => {
+                        // JSON responses are automatically parsed.
+                        this.events = response.data.tables[0].rows.map(i => {
+                            return {
+                                timestamp: i[0],
+                                clickCount: i[4] ? JSON.parse(i[4]).clickCount : "?",
+                                message: i[3] ? JSON.parse(i[3]).message : "?"
+                            }
+                        });
+                        self.loading = false;
+                    })
+                    .catch(e => {
+                        self.loading = false;
+                    });
+            }
         }
     })
 </script>
