@@ -23,6 +23,9 @@
     <div>
         <span v-if="loading">Loading...</span>
     </div>
+    <div>
+        <canvas id="myChart" width="400" height="100"></canvas>
+    </div>
     <ul>
         <li v-for="event in events">
             <div>
@@ -46,6 +49,7 @@
 </script>
 <script src="~/dist/bundle.js"></script>
 <script>
+    // Establish our "base" URL, complete with App Insights keys provided by MVC View Model variable:
     appInsightsUrl = axios.create({
         baseURL: 'https://api.applicationinsights.io/v1/apps/@ViewData.Model.AppInsightsApplicationId',
         headers: {
@@ -75,9 +79,10 @@
             fetchResults: function () {
                 var self = this;
                 self.loading = true;
+                // Query is a URL encoded represetion of "customEvents | order by timestamp desc", and the "timespan" parameter
+                //  limits results to past 24 hours.
                 appInsightsUrl.get('query?timespan=PT24H&query=customEvents%20|%20order%20by%20timestamp%20desc')
                     .then(response => {
-                        // JSON responses are automatically parsed.
                         this.events = response.data.tables[0].rows.map(i => {
                             return {
                                 timestamp: i[0],
@@ -85,11 +90,46 @@
                                 message: i[3] ? JSON.parse(i[3]).message : "?"
                             }
                         });
+
+                        self.drawChart();
+
                         self.loading = false;
                     })
                     .catch(e => {
                         self.loading = false;
                     });
+            },
+            drawChart: function () {
+                // Render a chart from our app insights data
+                var ctx = document.getElementById("myChart").getContext('2d');
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        datasets: [
+                            {
+                                label: 'App Insights Clicks',
+                                backgroundColor: "#00FF00",
+                                borderColor: "#0000FF",
+                                // Map data to fit what chartJS timeline is expecting
+                                data: this.events.map(e => {
+                                        return {
+                                            x: new Date(e.timestamp),
+                                            y: e.clickCount
+                                        };
+                                    })
+                            }
+                            ]
+                    },
+                    options: {
+                        scales: {
+                            xAxes: [{
+                                type: 'time',
+                                distribution: 'linear'
+                            }]
+                        }
+                    }
+                });
+
             }
         }
     })
